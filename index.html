@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>saher.ai</title>
+<style>
+:root{--bg:#faf9f5;--sf:#fff;--tx:#1f1e1d;--mu:#73726c;--bd:#e6e3da;--ac:#c96442;--ub:#f0eee6}
+@media(prefers-color-scheme:dark){:root{--bg:#262624;--sf:#30302e;--tx:#f2f1ec;--mu:#a3a29b;--bd:#43423e;--ub:#3a3936}}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,Arial,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0);box-sizing:border-box}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--bd)}
+.logo{font-family:Georgia,serif;font-size:22px;font-weight:600}.logo b{color:var(--ac)}
+button{font:inherit;cursor:pointer}
+.ghost{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:10px;padding:6px 12px}
+#chat{flex:1;overflow-y:auto;padding:20px 14px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.m{line-height:1.8;word-wrap:break-word;font-size:16px}
+.m.u{background:var(--ub);padding:10px 16px;border-radius:18px;align-self:flex-start;max-width:85%;white-space:pre-wrap}
+.m.a{display:flex;gap:10px}.m.a .ic{color:var(--ac);font-size:20px;line-height:1.6}.m.a .t{flex:1;min-width:0}
+.t div{white-space:pre-wrap}
+.code{direction:ltr;text-align:left;background:var(--sf);border:1px solid var(--bd);border-radius:12px;margin:8px 0;overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--ub);font-size:12px;color:var(--mu)}
+.code .bar button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:3px 10px;font-size:12px}
+.code pre{margin:0;padding:12px;overflow-x:auto;font-size:13px;line-height:1.5}
+.dots span{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--ac);animation:b 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
+footer{padding:10px 14px calc(14px + env(safe-area-inset-bottom,0))}
+.box{max-width:760px;margin:0 auto;background:var(--sf);border:1px solid var(--bd);border-radius:22px;padding:10px 12px}
+textarea{width:100%;border:0;outline:0;resize:none;background:none;color:var(--tx);font:inherit;font-size:16px;max-height:160px;box-sizing:border-box}
+.row{display:flex;justify-content:space-between;align-items:center}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.chip{background:var(--ub);border-radius:8px;padding:3px 10px;font-size:13px;cursor:pointer}
+.icb{background:none;border:0;color:var(--mu);font-size:22px;padding:4px 8px}
+.send{background:var(--ac);color:#fff;border:0;border-radius:12px;padding:8px 18px;font-weight:600}.send:disabled{opacity:.45}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}.modal.on{display:flex}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:18px;padding:20px;width:100%;max-width:640px;max-height:85vh;overflow:auto}
+.card input{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit;margin:10px 0}
+.sess,.hi{border:1px solid var(--bd);border-radius:12px;padding:10px;margin:8px 0;font-size:14px}
+.sess h4{margin:0 0 6px;color:var(--ac);font-size:13px}
+.hi{display:flex;justify-content:space-between;gap:8px;cursor:pointer}.hi small{color:var(--mu)}
+.hi .x{background:none;border:0;color:var(--mu)}
+.err{color:#c0392b;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><b>✻</b> saher.ai</div>
+  <div style="display:flex;gap:6px"><button class="ghost" id="nw">＋ جديدة</button><button class="ghost" id="hs">🕘 السجل</button><button class="ghost" id="adm">🔐</button></div>
+</header>
+<div id="chat"><div class="wrap" id="log"></div></div>
+<footer><div class="box">
+  <div class="chips" id="chips"></div>
+  <textarea id="inp" rows="1" placeholder="اكتب رسالتك لساهر..."></textarea>
+  <div class="row"><div><button class="icb" id="att">📎</button><input type="file" id="fl" multiple hidden></div><button class="send" id="snd">إرسال</button></div>
+</div></footer>
+<div class="modal" id="mod"><div class="card" id="card"></div></div>
+
+<script>
+// ===== ضع رابط الـ Worker بتاعك هنا (من Cloudflare) =====
+const API_URL = "https://YOUR-WORKER.YOUR-NAME.workers.dev";
+const GREETING = "ساهر يسهر الليالى لعيونك اللى مدوبانى وفى خدمتك يابطل الابطال";
+
+const $ = id => document.getElementById(id);
+const log = $("log"), inp = $("inp"), mod = $("mod"), card = $("card");
+const newId = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let sid = newId(), msgs = [], history = [], files = [], busy = false;
+const LS = "saher_convs_v1";
+const loadC = () => { try { return JSON.parse(localStorage.getItem(LS) || "[]"); } catch (_) { return []; } };
+function saveC() {
+  if (!msgs.length) return;
+  try {
+    const all = loadC().filter(c => c.id !== sid);
+    const first = msgs.find(m => m.r === "u");
+    all.unshift({ id: sid, title: (first ? first.t : "محادثة").slice(0, 45), at: Date.now(), msgs });
+    localStorage.setItem(LS, JSON.stringify(all.slice(0, 40)));
+  } catch (_) {}
+}
+
+const EXT = { html:"html", css:"css", js:"js", javascript:"js", json:"json", csv:"csv", py:"py", python:"py", md:"md", markdown:"md", svg:"svg", xml:"xml", sql:"sql", txt:"txt" };
+function render(el, text) {
+  el.innerHTML = "";
+  text.split("```").forEach((part, i) => {
+    if (i % 2) {
+      const nl = part.indexOf("\n"), lang = (nl > -1 ? part.slice(0, nl) : "").trim().toLowerCase(), code = nl > -1 ? part.slice(nl + 1) : part;
+      const box = document.createElement("div"); box.className = "code";
+      const bar = document.createElement("div"); bar.className = "bar";
+      const sp = document.createElement("span"); sp.textContent = lang || "code";
+      const b = document.createElement("button"); b.textContent = "⬇ تحميل كملف";
+      b.onclick = () => {
+        const a = document.createElement("a"), ext = EXT[lang] || "txt";
+        a.href = URL.createObjectURL(new Blob([code], { type: "text/plain;charset=utf-8" }));
+        a.download = "saher-file." + ext; a.click();
+      };
+      bar.append(sp, b);
+      const pre = document.createElement("pre"); pre.textContent = code;
+      box.append(bar, pre); el.appendChild(box);
+    } else if (part.trim()) {
+      const d = document.createElement("div"); d.textContent = part.trim(); el.appendChild(d);
+    }
+  });
+}
+function add(role, text) {
+  const d = document.createElement("div");
+  if (role === "u") { d.className = "m u"; d.textContent = text; }
+  else { d.className = "m a"; d.innerHTML = '<span class="ic">✻</span><div class="t"></div>'; render(d.querySelector(".t"), text); }
+  log.appendChild(d); $("chat").scrollTop = 1e9; return d;
+}
+function resetChat() { sid = newId(); msgs = []; history = []; files = []; renderChips(); log.innerHTML = ""; add("a", GREETING); }
+add("a", GREETING);
+
+function renderChips() {
+  $("chips").innerHTML = "";
+  files.forEach((f, i) => {
+    const c = document.createElement("span"); c.className = "chip"; c.textContent = "📄 " + f.name + " ✕";
+    c.onclick = () => { files.splice(i, 1); renderChips(); }; $("chips").appendChild(c);
+  });
+}
+$("att").onclick = () => $("fl").click();
+$("fl").onchange = async e => {
+  for (const f of e.target.files) {
+    if (f.size > 3e6) { alert("الملف " + f.name + " أكبر من 3MB"); continue; }
+    if (f.type.startsWith("image/") || f.type === "application/pdf") { alert("الملف " + f.name + " مش نصي، ساهر بيقرا الملفات النصية والكود بس (txt, csv, json, html, js, md...)"); continue; }
+    let text = ""; try { text = await f.text(); } catch (_) {}
+    files.push({ name: f.name, text: text.slice(0, 60000) });
+  }
+  e.target.value = ""; renderChips();
+};
+inp.addEventListener("input", () => { inp.style.height = "auto"; inp.style.height = inp.scrollHeight + "px"; });
+inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+$("snd").onclick = send;
+
+async function send() {
+  const q = inp.value.trim();
+  if ((!q && !files.length) || busy) return;
+  busy = true; $("snd").disabled = true;
+  const names = files.map(f => f.name);
+  const ftxt = files.map(f => "--- ملف: " + f.name + " ---\n" + f.text).join("\n\n");
+  const shown = q + (names.length ? "\n📎 " + names.join("، ") : "");
+  add("u", shown);
+  history.push({ role: "user", content: (ftxt ? ftxt + "\n\n" : "") + (q || "حلل الملفات المرفقة") });
+  inp.value = ""; inp.style.height = "auto"; files = []; renderChips();
+  const t = add("a", "").querySelector(".t");
+  t.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
+  try {
+    const r = await fetch(API_URL + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sid, messages: history.slice(-14) }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "error");
+    render(t, j.text); history.push({ role: "assistant", content: j.text });
+    msgs.push({ r: "u", t: shown }, { r: "a", t: j.text }); saveC();
+  } catch (e) {
+    history.pop(); t.textContent = "حصلت مشكلة في الاتصال، جرب تاني كمان شوية.";
+  }
+  busy = false; $("snd").disabled = false; $("chat").scrollTop = 1e9; inp.focus();
+}
+
+// ===== السجل =====
+mod.onclick = e => { if (e.target === mod) mod.classList.remove("on"); };
+$("nw").onclick = () => { if (!busy) resetChat(); };
+$("hs").onclick = showHist;
+function showHist() {
+  const all = loadC();
+  card.innerHTML = '<h3 style="margin:0 0 6px">محادثاتك السابقة</h3><div id="hl"></div>';
+  const hl = $("hl");
+  if (!all.length) hl.innerHTML = '<div class="err" style="color:var(--mu)">مفيش محادثات محفوظة لسه.</div>';
+  all.forEach(c => {
+    const d = document.createElement("div"); d.className = "hi";
+    const t = document.createElement("span"); t.textContent = c.title;
+    const s = document.createElement("small"); s.textContent = new Date(c.at).toLocaleDateString("ar-EG");
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "🗑";
+    x.onclick = e => { e.stopPropagation(); try { localStorage.setItem(LS, JSON.stringify(loadC().filter(k => k.id !== c.id))); } catch (_) {} showHist(); };
+    d.onclick = () => {
+      if (busy) return;
+      sid = c.id; msgs = c.msgs.slice(); log.innerHTML = ""; add("a", GREETING);
+      history = msgs.map(m => ({ role: m.r === "u" ? "user" : "assistant", content: m.t }));
+      msgs.forEach(m => add(m.r, m.t)); mod.classList.remove("on");
+    };
+    d.append(t, s, x); hl.appendChild(d);
+  });
+  mod.classList.add("on");
+}
+
+// ===== لوحة التحكم (الباسورد بيتفحص على السيرفر) =====
+$("adm").onclick = () => {
+  card.innerHTML = '<h3 style="margin:0">لوحة التحكم 🔐</h3><input type="password" id="pw" placeholder="الباسورد"><div class="err" id="pe"></div><button class="send" id="go">دخول</button>';
+  mod.classList.add("on"); $("pw").focus();
+  const go = async () => {
+    $("pe").textContent = "";
+    try {
+      const r = await fetch(API_URL + "/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: $("pw").value }) });
+      const j = await r.json();
+      if (!r.ok) { $("pe").textContent = "الباسورد غلط"; return; }
+      panel(j.rows);
+    } catch (_) { $("pe").textContent = "مقدرتش أتصل بالسيرفر"; }
+  };
+  $("go").onclick = go; $("pw").onkeydown = e => { if (e.key === "Enter") go(); };
+};
+function panel(rows) {
+  card.innerHTML = '<h3 style="margin:0">محادثات الزوار</h3><div id="ls"></div>';
+  const ls = $("ls");
+  if (!rows.length) { ls.textContent = "مفيش محادثات لسه."; return; }
+  const eb = document.createElement("button"); eb.className = "send"; eb.textContent = "⬇ تحميل كل المحادثات";
+  eb.onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" })); a.download = "saher-chats.json"; a.click(); };
+  ls.appendChild(eb);
+  const g = {}; rows.forEach(r => (g[r.sid] = g[r.sid] || []).push(r));
+  Object.entries(g).forEach(([k, arr]) => {
+    arr.sort((a, b) => a.at - b.at);
+    const s = document.createElement("div"); s.className = "sess";
+    const h = document.createElement("h4"); h.textContent = new Date(arr[0].at).toLocaleString("ar-EG") + " — زائر " + k.slice(-4); s.appendChild(h);
+    arr.forEach(r => { const p = document.createElement("div"); p.style.cssText = "white-space:pre-wrap;margin:4px 0"; p.textContent = (r.role === "u" ? "👤 " : "✻ ") + r.text; s.appendChild(p); });
+    ls.appendChild(s);
+  });
+}
+</script>
+</body>
+</html>
